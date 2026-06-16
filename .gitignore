@@ -1,0 +1,35 @@
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native projects — regenerated from app config via `npx expo prebuild`
+/android
+/ios
+
+# Secrets (LLM API token etc.) — copy khaata.secrets.example.json to create
+khaata.secrets.json
+.env
+.env.local
+
+# Build outputs / signing
+*.apk
+*.aab
+*.keystore
+.android-env.sh
+
+# Native build caches
+**/.cxx/
+**/build/
+
+# macOS / editors
+.DS_Store
+*.log
+
+# Design-handoff artifacts (not part of the app)
+chats/
+project/

@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "Khaata",
+    "slug": "khaata",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "scheme": "khaata",
+    "icon": "./assets/icon.png",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.khaata.app"
+    },
+    "android": {
+      "package": "com.khaata.app",
+      "icon": "./assets/icon.png",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#6358E8"
+      },
+      "permissions": [
+        "android.permission.READ_SMS"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/icon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "1.9.24"
+          }
+        }
+      ],
+      "@react-native-google-signin/google-signin"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "googleAndroidClientId": "355225966098-3g7gp6ofo1rf14unnq5eerahsi29jo8c.apps.googleusercontent.com",
+      "googleWebClientId": "355225966098-pf79d05tcduqe302fp8iskikv3a1tri3.apps.googleusercontent.com",
+      "llmApiUrl": "https://ai.aeologic.in/v1/chat/completions",
+      "llmModel": "qwen2.5:14b"
+    }
+  }
+}

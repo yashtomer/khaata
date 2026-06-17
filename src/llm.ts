@@ -38,8 +38,19 @@ export function llmConfigured(): boolean {
   return !!(LLM_URL && LLM_KEY && LLM_MODEL);
 }
 
+// The self-hosted model serves ONE request at a time. Funnel every LLM call
+// through a single queue so concurrent callers (email extraction + SMS
+// categorisation) don't slam it at once and all time out. Serializing loses no
+// real throughput (the server is single-threaded) and prevents the failures.
+let llmChain: Promise<unknown> = Promise.resolve();
+function llmPost(messages: any[], timeoutMs: number, maxTokens?: number): Promise<any | null> {
+  const run = llmChain.then(() => llmPostRaw(messages, timeoutMs, maxTokens));
+  llmChain = run.then(() => undefined, () => undefined); // keep the chain alive past errors
+  return run;
+}
+
 /** POST to the LLM with an abort timeout so a slow call never hangs the UI. */
-async function llmPost(messages: any[], timeoutMs: number, maxTokens?: number): Promise<any | null> {
+async function llmPostRaw(messages: any[], timeoutMs: number, maxTokens?: number): Promise<any | null> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {

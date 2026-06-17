@@ -128,9 +128,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // transfer. Results are cached as "learned" per merchant, so it's one-time.
   const categorizeSmsBackground = async (smsTxns: Transaction[]) => {
     if (smsCatRunning.current) return; // never run two passes at once (overloads the LLM)
-    const need = smsTxns.filter(
-      t => !getOverride(t.merchant) && !getLearned(t.merchant) && ruleClassify(t.merchant, t.raw || '') == null
-    );
+    // Send to the AI everything the rules can't classify confidently: no keyword
+    // match (null) OR the low-confidence "transfers" heuristic (any UPI payment
+    // to a 2-3 word name — which wrongly catches schools/shops with truncated
+    // names like "CAMBRIDGE SCHOO"). Confident keyword matches are left as-is.
+    const need = smsTxns.filter(t => {
+      if (getOverride(t.merchant) || getLearned(t.merchant)) return false;
+      const rc = ruleClassify(t.merchant, t.raw || '');
+      return rc == null || rc === 'transfers';
+    });
     if (!need.length) return;
     const seen = new Set<string>();
     const items: Array<{ id: number; text: string }> = [];

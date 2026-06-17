@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useRef } from 'r
 import { AppState as RNAppState } from 'react-native';
 import { INITIAL_TXNS, Transaction } from './data';
 import { importSmsTransactions } from './sms';
+import { ruleClassify } from './smsParser';
 import {
   setOverride, merchantKey, loadCategoryData, learnedExamples,
   getUserName, setUserName as persistUserName, getOverride, getLearned, setLearned,
@@ -104,6 +105,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [loggedIn, setLoggedIn] = useState(false);
   const emailBusyRef = useRef(false);
   const lastResumeSync = useRef(0);
+  const smsCatRunning = useRef(false); // guards the SMS AI categorization from running concurrently
 
   const setAutoSync = (v: boolean) => {
     setAutoSyncState(v);
@@ -120,12 +122,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void persistUserName(name);
   };
 
-  // Background: use the LLM (with SMS body context) to categorise the UPI/SMS
-  // payments the on-device rules left as transfers/other — the bulk of spending.
-  // Results are cached as "learned" per merchant, so this only runs for new ones.
+  // Background: use the LLM (with SMS body context) to categorise EVERY SMS the
+  // built-in keyword rules can't identify with confidence (ruleClassify == null)
+  // — i.e. all the opaque UPI payees, transfers, and misses like a school-fee
+  // transfer. Results are cached as "learned" per merchant, so it's one-time.
   const categorizeSmsBackground = async (smsTxns: Transaction[]) => {
+    if (smsCatRunning.current) return; // never run two passes at once (overloads the LLM)
     const need = smsTxns.filter(
-      t => (t.cat === 'transfers' || t.cat === 'other') && !getOverride(t.merchant) && !getLearned(t.merchant)
+      t => !getOverride(t.merchant) && !getLearned(t.merchant) && ruleClassify(t.merchant, t.raw || '') == null
     );
     if (!need.length) return;
     const seen = new Set<string>();
@@ -136,19 +140,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       seen.add(key);
       items.push({ id: t.id, text: `${t.merchant} | ${(t.raw || '').slice(0, 160)}` });
     }
-    const result = await llmCategorizeContext(items);
-    const idToMerchant = new Map(need.map(t => [t.id, t.merchant]));
-    const merchantCat = new Map<string, string>();
-    for (const [idStr, cat] of Object.entries(result)) {
-      const m = idToMerchant.get(Number(idStr));
-      if (m) { merchantCat.set(merchantKey(m), cat); void setLearned(m, cat); }
+    smsCatRunning.current = true;
+    try {
+      const result = await llmCategorizeContext(items);
+      const idToMerchant = new Map(need.map(t => [t.id, t.merchant]));
+      const merchantCat = new Map<string, string>();
+      for (const [idStr, cat] of Object.entries(result)) {
+        const m = idToMerchant.get(Number(idStr));
+        if (m) { merchantCat.set(merchantKey(m), cat); void setLearned(m, cat); }
+      }
+      if (!merchantCat.size) return;
+      setTxns(prev => prev.map(t => {
+        if (t.source !== 'sms' || getOverride(t.merchant)) return t;
+        const c = merchantCat.get(merchantKey(t.merchant));
+        return c ? { ...t, cat: c } : t;
+      }));
+    } finally {
+      smsCatRunning.current = false;
     }
-    if (!merchantCat.size) return;
-    setTxns(prev => prev.map(t => {
-      if (t.source !== 'sms' || getOverride(t.merchant)) return t;
-      const c = merchantCat.get(merchantKey(t.merchant));
-      return c ? { ...t, cat: c } : t;
-    }));
   };
 
   const connectSms = async (): Promise<SmsStatus> => {

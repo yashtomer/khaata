@@ -162,27 +162,25 @@ export async function llmCategorizeContext(items: Array<{ id: number; text: stri
     'A payment to a person\'s name with no business context is transfers. ' +
     'Input is a JSON array of {id, text}. Respond with ONLY a compact JSON object mapping each id (number) to its category key. No prose, no code fences.';
   const out: Record<number, string> = {};
-  for (let i = 0; i < items.length; i += 25) {
-    const chunk = items.slice(i, i + 25);
+  for (let i = 0; i < items.length; i += 12) {
+    const chunk = items.slice(i, i + 12);
     const data = await llmPost(
       [
         { role: 'system', content: sys },
         { role: 'user', content: JSON.stringify(chunk) },
       ],
       45000,
-      400
+      300
     );
     if (!data) continue;
-    try {
-      const text: string = data?.choices?.[0]?.message?.content || '';
-      const match = text.replace(/```json|```/gi, '').match(/\{[\s\S]*\}/);
-      if (!match) continue;
-      const parsed = JSON.parse(match[0]);
-      for (const [k, v] of Object.entries(parsed)) {
-        if (typeof v === 'string' && VALID.has(v)) out[Number(k)] = v;
-      }
-    } catch {
-      /* skip this chunk */
+    // qwen returns this inconsistently — sometimes {"1":"education"}, sometimes
+    // [1="education", 2="transfers"]. Extract id→category pairs from any format
+    // rather than relying on strict JSON.
+    const text: string = data?.choices?.[0]?.message?.content || '';
+    for (const m of text.matchAll(/(\d+)\s*["']?\s*[:=]\s*["']?([a-z]+)/gi)) {
+      const id = Number(m[1]);
+      const cat = m[2].toLowerCase();
+      if (VALID.has(cat)) out[id] = cat;
     }
   }
   return out;

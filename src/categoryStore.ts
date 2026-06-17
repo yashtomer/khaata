@@ -10,7 +10,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // v2: reset — overrides/learned held the old category keys (food/shopping/rent/
 // bills/…); cleared so everything re-categorises into the new taxonomy.
 const OVERRIDES_KEY = 'khaata.categoryOverrides.v2';
-const LEARNED_KEY = 'khaata.learnedExamples.v3';
+// v4: reset so the AI re-categorises every uncertain merchant with the new
+// "AI for everything the rules can't classify" pass (keeps user overrides).
+const LEARNED_KEY = 'khaata.learnedExamples.v4';
 const NAME_KEY = 'khaata.userName.v1';
 const EMAIL_KEY = 'khaata.emailConnected.v1';
 const SMS_KEY = 'khaata.smsConnected.v1';

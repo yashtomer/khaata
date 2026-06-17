@@ -14,15 +14,18 @@
 // Seed examples: representative merchant names per category. The classifier
 // matches new merchants against these by n-gram/token overlap.
 const SEED: Record<string, string[]> = {
-  food: ['zomato', 'swiggy', 'dominos pizza', 'pizza hut', 'starbucks', 'cafe coffee day', 'mcdonalds', 'kfc', 'burger king', 'subway', 'haldiram', 'barbeque nation', 'biryani', 'restaurant', 'chaayos', 'third wave coffee', 'dunkin', 'wow momo', 'behrouz biryani', 'faasos'],
-  groceries: ['swiggy instamart', 'blinkit', 'zepto', 'bigbasket', 'dmart', 'jiomart', 'reliance smart', 'more supermarket', 'spencers', 'kirana store', 'licious', 'country delight', 'milkbasket', 'grocery'],
-  shopping: ['amazon', 'flipkart', 'myntra', 'ajio', 'nykaa', 'meesho', 'tatacliq', 'reliance digital', 'croma', 'decathlon', 'uniqlo', 'zara', 'h&m', 'levis', 'allen solly', 'van heusen', 'peter england', 'fabindia', 'biba', 'puma', 'nike', 'adidas', 'westside', 'pantaloons', 'shoppers stop', 'lifestyle', 'firstcry', 'ikea', 'snitch', 'bewakoof'],
-  transport: ['uber', 'ola', 'rapido', 'blusmart', 'indian oil', 'bharat petroleum', 'hpcl', 'shell petrol', 'fuel', 'irctc railway', 'redbus', 'fastag', 'metro', 'namma yatri', 'makemytrip', 'goibibo', 'cleartrip', 'indigo airlines', 'vistara', 'air india', 'spicejet', 'ksrtc', 'bmtc'],
-  tuition: ['university', 'college', 'school fees', 'tuition', 'coaching', 'academy', 'institute', 'byjus', 'unacademy', 'vedantu', 'whitehat'],
-  entertainment: ['bookmyshow', 'netflix', 'spotify', 'hotstar', 'jiocinema', 'sonyliv', 'zee5', 'prime video', 'pvr cinemas', 'inox', 'youtube premium', 'jiosaavn', 'gaana', 'playstation', 'xbox', 'steam games', 'dream11'],
-  health: ['apollo pharmacy', 'pharmeasy', '1mg', 'netmeds', 'medplus', 'cult fit', 'cure fit', 'practo', 'thyrocare', 'hospital', 'clinic', 'dental', 'gym membership', 'fitness', 'diagnostics', 'medical'],
-  rent: ['rent', 'landlord', 'house rent', 'society maintenance', 'lease', 'nobroker', 'housing'],
-  bills: ['electricity bill', 'bescom', 'tata power', 'adani electricity', 'water bill', 'gas bill', 'indane', 'airtel postpaid', 'jio recharge', 'vodafone', 'bsnl', 'act fibernet', 'broadband', 'dth recharge', 'tata sky', 'lic premium', 'insurance', 'mutual fund sip', 'credit card payment', 'loan emi'],
+  dining: ['zomato', 'swiggy', 'dominos pizza', 'pizza hut', 'starbucks', 'cafe coffee day', 'mcdonalds', 'kfc', 'burger king', 'subway', 'haldiram', 'barbeque nation', 'biryani', 'restaurant', 'chaayos', 'third wave coffee', 'dunkin', 'wow momo', 'behrouz biryani', 'faasos'],
+  groceries: ['swiggy instamart', 'blinkit', 'zepto', 'bigbasket', 'dmart', 'jiomart', 'reliance smart', 'more supermarket', 'spencers', 'kirana store', 'licious', 'country delight', 'milkbasket', 'grocery', 'vegetables', 'fruits'],
+  lifestyle: ['amazon', 'flipkart', 'myntra', 'ajio', 'nykaa', 'meesho', 'tatacliq', 'reliance digital', 'croma', 'decathlon', 'uniqlo', 'zara', 'h&m', 'levis', 'allen solly', 'van heusen', 'peter england', 'fabindia', 'biba', 'puma', 'nike', 'adidas', 'westside', 'pantaloons', 'shoppers stop', 'firstcry', 'ikea', 'snitch', 'bewakoof', 'salon', 'spa', 'grooming', 'subscription'],
+  transport: ['uber', 'ola', 'rapido', 'blusmart', 'indian oil', 'bharat petroleum', 'hpcl', 'shell petrol', 'fuel', 'irctc railway', 'redbus', 'fastag', 'metro', 'namma yatri', 'ksrtc', 'bmtc', 'car service', 'vehicle service'],
+  education: ['university', 'college', 'school fees', 'tuition', 'coaching', 'academy', 'institute', 'byjus', 'unacademy', 'vedantu', 'whitehat', 'udemy', 'coursera', 'upgrad', 'scaler', 'books'],
+  entertainment: ['bookmyshow', 'netflix', 'spotify', 'hotstar', 'jiocinema', 'sonyliv', 'zee5', 'prime video', 'pvr cinemas', 'inox', 'youtube premium', 'jiosaavn', 'gaana', 'playstation', 'xbox', 'steam games', 'dream11', 'makemytrip', 'goibibo', 'cleartrip', 'indigo airlines', 'vistara', 'air india', 'spicejet', 'oyo', 'airbnb', 'hotel', 'trip'],
+  healthcare: ['apollo pharmacy', 'pharmeasy', '1mg', 'netmeds', 'medplus', 'cult fit', 'cure fit', 'practo', 'thyrocare', 'hospital', 'clinic', 'dental', 'gym membership', 'fitness', 'diagnostics', 'medical', 'doctor', 'medicine'],
+  housing: ['rent', 'landlord', 'house rent', 'society maintenance', 'lease', 'nobroker', 'housing', 'property tax', 'home loan'],
+  utilities: ['electricity bill', 'bescom', 'tata power', 'adani electricity', 'water bill', 'gas bill', 'indane', 'airtel postpaid', 'jio recharge', 'vodafone', 'bsnl', 'act fibernet', 'broadband', 'dth recharge', 'tata sky', 'internet', 'wifi', 'mobile recharge'],
+  insurance: ['lic premium', 'insurance', 'hdfc life', 'icici prudential', 'max life', 'sbi life', 'star health', 'care health', 'niva bupa', 'acko', 'go digit', 'policybazaar', 'mediclaim', 'term plan'],
+  investments: ['paytm money', 'groww', 'zerodha', 'upstox', 'kuvera', 'indmoney', 'smallcase', 'mutual fund sip', 'nippon india', 'sbi mutual fund', 'axis mutual fund', 'mirae asset', 'demat', 'fixed deposit', 'recurring deposit', 'elss'],
+  domestic: ['maid', 'cook', 'housekeeping', 'domestic help', 'house help', 'society staff', 'security guard', 'nanny', 'gardener'],
   transfers: ['upi transfer', 'imps transfer', 'neft', 'money sent', 'fund transfer'],
 };
 

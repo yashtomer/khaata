@@ -8,21 +8,29 @@ import { CATEGORIES, getCategoryMap, inr, MONTHS, monthLabel } from '../../src/d
 import { C, F, CARD_SHADOW } from '../../src/theme';
 import { Icon } from '../../components/Icon';
 import { fetchEmailBody } from '../../src/gmail';
+import { llmExtractEmail, EmailExtract } from '../../src/llm';
 
 const SMS_PATHS = ['M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'];
 const MAIL_PATHS = ['M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z', 'm22 7-10 6L2 7'];
 const CHECK_PATHS = ['M20 6 9 17l-5-5'];
 const BACK_PATHS = ['m15 18-6-6 6-6'];
+const CLOCK_PATHS = ['M12 6v6l4 2', 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z'];
+const REFRESH_PATHS = ['M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8', 'M21 3v5h-5', 'M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16', 'M3 21v-5h5'];
 
 export default function TransactionDetail() {
-  const { txns, selectedTxnId, recategorize, userName } = useApp();
+  const { txns, selectedTxnId, recategorize, userName, applyEmailAi } = useApp();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [fullEmail, setFullEmail] = useState<string | null>(null);
   const [loadingEmail, setLoadingEmail] = useState(false);
+  const [aiInfo, setAiInfo] = useState<EmailExtract | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(false);
+  const [aiElapsed, setAiElapsed] = useState(0); // seconds (live while loading)
+  const [aiAttempt, setAiAttempt] = useState(0); // bump to retry
 
   const txn = txns.find(t => t.id === selectedTxnId) || txns[0];
   const catMap = getCategoryMap();
-  const cat = catMap[txn.cat];
+  const cat = catMap[txn.cat] || catMap.other;
   const isSms = txn.source === 'sms';
   const who = userName || 'there';
 
@@ -39,6 +47,45 @@ export default function TransactionDetail() {
     }
     return () => { alive = false; };
   }, [txn.gmailId, txn.source]);
+
+  // Show the LLM-extracted {amount, type, vendor}. Prefer the result already
+  // computed during sync (cached on the transaction); otherwise wait for the
+  // full email body, send header+body to the LLM, time it, and patch the result
+  // back into the transaction (so the amount/category correct everywhere).
+  useEffect(() => {
+    if (txn.source !== 'email') { setAiInfo(null); setAiError(false); return; }
+    // Cached from the background sync — show it with its stored timing.
+    if (aiAttempt === 0 && txn.aiDone && (txn.aiType || txn.aiVendor)) {
+      setAiInfo({ isTransaction: true, amount: String(txn.amount), amountValue: txn.amount, type: txn.aiType ?? null, vendor: txn.aiVendor ?? null, category: txn.cat, ms: txn.aiMs ?? 0 });
+      setAiElapsed((txn.aiMs ?? 0) / 1000);
+      setAiError(false);
+      return;
+    }
+    if (loadingEmail) return; // wait for the full body before reading with AI
+    const text = fullEmail || txn.raw;
+    if (!text) return;
+    let alive = true;
+    setAiError(false);
+    setAiInfo(null);
+    setAiLoading(true);
+    setAiElapsed(0);
+    const startedAt = Date.now();
+    const ticker = setInterval(() => { if (alive) setAiElapsed((Date.now() - startedAt) / 1000); }, 100);
+    llmExtractEmail(text)
+      .then(r => {
+        if (!alive) return;
+        if (r) {
+          setAiInfo(r);
+          setAiElapsed(r.ms / 1000);
+          applyEmailAi(txn.id, r); // correct the amount/category app-wide + cache
+        } else {
+          setAiError(true);
+          setAiElapsed((Date.now() - startedAt) / 1000);
+        }
+      })
+      .finally(() => { if (alive) { clearInterval(ticker); setAiLoading(false); } });
+    return () => { alive = false; clearInterval(ticker); };
+  }, [fullEmail, loadingEmail, txn.id, txn.source, aiAttempt]);
 
   // Prefer the full fetched email, then the stored snippet, then a synthesised
   // message for demo data with no raw.
@@ -121,6 +168,50 @@ export default function TransactionDetail() {
             </View>
           )}
         </View>
+        {/* AI-extracted details (email only) */}
+        {txn.source === 'email' && (aiLoading || aiInfo || aiError) && (
+          <>
+            <Text style={styles.msgLabel}>AI extracted</Text>
+            <View style={styles.msgCard}>
+              {aiLoading && !aiInfo ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <ActivityIndicator size="small" color={C.primary} />
+                  <Text style={styles.msgBody}>Reading the email with AI… {aiElapsed.toFixed(1)}s</Text>
+                </View>
+              ) : aiInfo ? (
+                <View style={{ gap: 12 }}>
+                  <View style={styles.aiRow}>
+                    <Text style={styles.aiLabel}>Amount</Text>
+                    <Text style={styles.aiValue}>{aiInfo.amount ? (String(aiInfo.amount).startsWith('₹') ? aiInfo.amount : `₹${aiInfo.amount}`) : '—'}</Text>
+                  </View>
+                  <View style={styles.aiRow}>
+                    <Text style={styles.aiLabel}>Transaction type</Text>
+                    <Text style={styles.aiValue}>{aiInfo.type || '—'}</Text>
+                  </View>
+                  <View style={styles.aiRow}>
+                    <Text style={styles.aiLabel}>Vendor / for</Text>
+                    <Text style={[styles.aiValue, { flexShrink: 1, textAlign: 'right' }]} numberOfLines={2}>{aiInfo.vendor || '—'}</Text>
+                  </View>
+                  {aiElapsed > 0 && (
+                    <View style={styles.aiTimeRow}>
+                      <Icon paths={CLOCK_PATHS} color="#A0A0B5" size={13} strokeWidth={2} />
+                      <Text style={styles.aiTimeText}>Generated in {aiElapsed.toFixed(1)}s</Text>
+                    </View>
+                  )}
+                </View>
+              ) : aiError ? (
+                <View style={{ gap: 12 }}>
+                  <Text style={styles.msgBody}>Couldn't reach the AI{aiElapsed > 0 ? ` after ${aiElapsed.toFixed(1)}s` : ''}. Check your connection and try again.</Text>
+                  <TouchableOpacity style={styles.aiRetry} onPress={() => setAiAttempt(a => a + 1)} activeOpacity={0.85}>
+                    <Icon paths={REFRESH_PATHS} color={C.primary} size={15} strokeWidth={2.1} />
+                    <Text style={styles.aiRetryText}>Retry</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+            </View>
+          </>
+        )}
+
         <View style={styles.autoRow}>
           <Text style={styles.autoText}>Auto-categorised by Khaata · tap category to fix</Text>
         </View>
@@ -196,6 +287,13 @@ const styles = StyleSheet.create({
   msgSourceIcon: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   msgFromText: { fontSize: 12.5, fontFamily: F.bold, color: C.text },
   msgBody: { fontSize: 13, fontFamily: F.medium, color: '#6A6A82', lineHeight: 21 },
+  aiRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  aiLabel: { fontSize: 13, fontFamily: F.semiBold, color: C.muted },
+  aiValue: { fontSize: 13.5, fontFamily: F.bold, color: C.dark },
+  aiTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2, paddingTop: 11, borderTopWidth: 1, borderTopColor: '#F2F2F7' },
+  aiTimeText: { fontSize: 12, fontFamily: F.semiBold, color: '#A0A0B5' },
+  aiRetry: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 7, paddingVertical: 9, paddingHorizontal: 15, borderRadius: 12, backgroundColor: C.primarySoft },
+  aiRetryText: { fontSize: 13, fontFamily: F.bold, color: C.primary },
   autoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 14 },
   autoText: { fontSize: 12, fontFamily: F.semiBold, color: '#A0A0B5' },
   overlay: { flex: 1, backgroundColor: 'rgba(20,18,40,0.4)', justifyContent: 'flex-end' },

@@ -48,7 +48,7 @@
       "googleAndroidClientId": "355225966098-3g7gp6ofo1rf14unnq5eerahsi29jo8c.apps.googleusercontent.com",
       "googleWebClientId": "355225966098-pf79d05tcduqe302fp8iskikv3a1tri3.apps.googleusercontent.com",
       "llmApiUrl": "https://ai.aeologic.in/v1/chat/completions",
-      "llmModel": "qwen2.5:14b"
+      "llmModel": "qwen2.5:3b"
     }
   }
 }

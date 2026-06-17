@@ -78,7 +78,7 @@ export async function importSmsTransactions(): Promise<SmsImportResult> {
     return {
       id: i + 1,
       merchant: d.merchant,
-      cat: cat || 'bills',
+      cat: cat || 'other',
       amount: d.amount,
       day: d.when.getDate(),
       month: d.when.getMonth(),

@@ -7,19 +7,28 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  * Both live in AsyncStorage and are mirrored in memory for synchronous reads.
  */
 
-const OVERRIDES_KEY = 'khaata.categoryOverrides.v1';
-// v2: only user-confirmed corrections are stored here now (model guesses are no
-// longer cached), so the old v1 cache of model guesses is intentionally dropped.
-const LEARNED_KEY = 'khaata.learnedExamples.v2';
+// v2: reset — overrides/learned held the old category keys (food/shopping/rent/
+// bills/…); cleared so everything re-categorises into the new taxonomy.
+const OVERRIDES_KEY = 'khaata.categoryOverrides.v2';
+const LEARNED_KEY = 'khaata.learnedExamples.v3';
 const NAME_KEY = 'khaata.userName.v1';
 const EMAIL_KEY = 'khaata.emailConnected.v1';
 const SMS_KEY = 'khaata.smsConnected.v1';
 const PHOTO_KEY = 'khaata.googlePhoto.v1';
+// v5: reset again after fixing the SMS-wipe bug, so email re-fetches cleanly
+// (the v4 cache was poisoned: near-empty email + a recent sync timestamp that
+// limited the incremental fetch to the last 2 days).
+const EMAIL_TXNS_KEY = 'khaata.emailTxns.v10';
+const EMAIL_SYNC_KEY = 'khaata.emailSync.v10';
+const AUTOSYNC_KEY = 'khaata.autoSync.v1';
+const LOGGEDIN_KEY = 'khaata.loggedIn.v1';
 
 let userName = '';
 let emailConnected = false;
 let smsConnected = false;
 let googlePhoto = '';
+let autoSync = true; // default on; user can turn it off in the drawer
+let loggedIn = false; // signed in with Google (gates the login screen)
 
 /** Normalise a merchant name into a stable lookup key. */
 export function merchantKey(merchant: string): string {
@@ -34,13 +43,15 @@ let loaded = false;
 export async function loadCategoryData(): Promise<void> {
   if (loaded) return;
   try {
-    const [o, l, n, e, s, p] = await AsyncStorage.multiGet([OVERRIDES_KEY, LEARNED_KEY, NAME_KEY, EMAIL_KEY, SMS_KEY, PHOTO_KEY]);
+    const [o, l, n, e, s, p, a, li] = await AsyncStorage.multiGet([OVERRIDES_KEY, LEARNED_KEY, NAME_KEY, EMAIL_KEY, SMS_KEY, PHOTO_KEY, AUTOSYNC_KEY, LOGGEDIN_KEY]);
     overrides = o[1] ? JSON.parse(o[1]) : {};
     learned = l[1] ? JSON.parse(l[1]) : {};
     userName = n[1] || '';
     emailConnected = e[1] === '1';
     smsConnected = s[1] === '1';
     googlePhoto = p[1] || '';
+    autoSync = a[1] == null ? true : a[1] === '1';
+    loggedIn = li[1] === '1';
   } catch {
     overrides = {};
     learned = {};
@@ -48,6 +59,8 @@ export async function loadCategoryData(): Promise<void> {
     emailConnected = false;
     smsConnected = false;
     googlePhoto = '';
+    autoSync = true;
+    loggedIn = false;
   }
   loaded = true;
 }
@@ -78,6 +91,33 @@ export async function setEmailConnectedFlag(v: boolean): Promise<void> {
   }
 }
 
+/** Parsed email transactions cached from the last Gmail sync, with the sync
+ * time, so launches only fetch emails newer than `sync` (fast). */
+export async function getCachedEmail(): Promise<{ txns: any[]; sync: number }> {
+  try {
+    const [t, s] = await AsyncStorage.multiGet([EMAIL_TXNS_KEY, EMAIL_SYNC_KEY]);
+    return { txns: t[1] ? JSON.parse(t[1]) : [], sync: s[1] ? parseInt(s[1], 10) : 0 };
+  } catch {
+    return { txns: [], sync: 0 };
+  }
+}
+
+export async function setCachedEmail(txns: any[], sync: number): Promise<void> {
+  try {
+    await AsyncStorage.multiSet([[EMAIL_TXNS_KEY, JSON.stringify(txns)], [EMAIL_SYNC_KEY, String(sync)]]);
+  } catch {
+    /* best-effort */
+  }
+}
+
+export async function clearCachedEmail(): Promise<void> {
+  try {
+    await AsyncStorage.multiRemove([EMAIL_TXNS_KEY, EMAIL_SYNC_KEY]);
+  } catch {
+    /* best-effort */
+  }
+}
+
 export function getGooglePhoto(): string {
   return googlePhoto;
 }
@@ -86,6 +126,32 @@ export async function setGooglePhoto(url: string): Promise<void> {
   googlePhoto = url || '';
   try {
     await AsyncStorage.setItem(PHOTO_KEY, googlePhoto);
+  } catch {
+    /* best-effort */
+  }
+}
+
+export function getLoggedInFlag(): boolean {
+  return loggedIn;
+}
+
+export async function setLoggedInFlag(v: boolean): Promise<void> {
+  loggedIn = v;
+  try {
+    await AsyncStorage.setItem(LOGGEDIN_KEY, v ? '1' : '0');
+  } catch {
+    /* best-effort */
+  }
+}
+
+export function getAutoSync(): boolean {
+  return autoSync;
+}
+
+export async function setAutoSync(v: boolean): Promise<void> {
+  autoSync = v;
+  try {
+    await AsyncStorage.setItem(AUTOSYNC_KEY, v ? '1' : '0');
   } catch {
     /* best-effort */
   }

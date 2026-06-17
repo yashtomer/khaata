@@ -5,16 +5,22 @@ import { Transaction } from './data';
 // text and the full message body (lower-cased).
 // Order matters: more specific buckets are checked before the broad "food"
 // one, so e.g. "Swiggy Instamart" lands in groceries, not food.
+// Maps merchant/body text → one of the new category keys. First match wins, so
+// more specific buckets (investments, insurance, domestic) are checked before
+// the broad ones.
 const CATEGORY_KEYWORDS: Array<{ cat: string; words: string[] }> = [
-  { cat: 'groceries', words: ['instamart', 'dmart', 'bigbasket', 'blinkit', 'zepto', 'grocery', 'supermarket', 'kirana', 'reliance smart', 'jiomart', 'jio mart', 'more retail', 'spencer', 'nature basket', 'licious', 'country delight', 'milkbasket', 'fraazo', 'otipy'] },
-  { cat: 'food', words: ['zomato', 'swiggy', 'dominos', "domino's", 'pizza', 'starbucks', 'cafe', 'coffee', 'restaurant', 'mcdonald', 'kfc', 'eatery', 'biryani', 'food', 'eatsure', 'faasos', 'behrouz', 'box8', 'haldiram', 'barbeque', 'chaayos', 'third wave', 'dunkin', 'subway', 'burger', 'wow momo', 'baskin', 'dineout', 'eazydiner'] },
-  { cat: 'shopping', words: ['myntra', 'amazon', 'flipkart', 'ajio', 'decathlon', 'nykaa', 'meesho', 'lifestyle', 'shoppers stop', 'mall', 'tatacliq', 'tata cliq', 'reliance digital', 'croma', 'snapdeal', 'firstcry', 'ikea', 'h&m', 'zara', 'westside', 'pantaloons', 'max fashion', 'urban company', 'urbanclap', 'uniqlo', 'levis', "levi's", 'us polo', 'allen solly', 'van heusen', 'peter england', 'fabindia', 'biba', 'snitch', 'bewakoof', 'souled store', 'puma', 'nike', 'adidas', 'reliance trends', 'jockey', 'marks & spencer', 'forever 21'] },
-  { cat: 'transport', words: ['uber', 'ola', 'rapido', 'indian oil', 'iocl', 'bharat petroleum', 'hpcl', 'shell', 'fuel', 'petrol', 'metro', 'irctc', 'redbus', 'fastag', 'blusmart', 'namma yatri', 'makemytrip', 'goibibo', 'cleartrip', 'ixigo', 'vistara', 'indigo', 'air india', 'spicejet', 'railway', 'toll', 'parking', 'bmtc', 'ksrtc'] },
-  { cat: 'tuition', words: ['university', 'college', 'school', 'tuition', 'academy', 'coaching', 'fees', 'institute', 'byju', 'unacademy', 'vedantu', 'whitehat'] },
-  { cat: 'entertainment', words: ['bookmyshow', 'netflix', 'spotify', 'hotstar', 'prime video', 'pvr', 'inox', 'youtube', 'gaming', 'cinema', 'jiocinema', 'sonyliv', 'zee5', 'disney', 'jiosaavn', 'gaana', 'wynk', 'steam', 'playstation', 'xbox', 'dream11'] },
-  { cat: 'health', words: ['pharmacy', 'apollo', 'cult.fit', 'cultfit', 'cure.fit', 'hospital', 'clinic', 'medplus', 'diagnostic', 'practo', 'medical', 'health', '1mg', 'tata 1mg', 'pharmeasy', 'netmeds', 'thyrocare', 'gym', 'fitness', 'dental', 'wellness'] },
-  { cat: 'rent', words: ['rent', 'landlord', 'lease', 'maintenance', 'society', 'nobroker', 'housing'] },
-  { cat: 'bills', words: ['electricity', 'bescom', 'water bill', 'gas', 'airtel', 'jio', 'vodafone', 'vi postpaid', 'broadband', 'recharge', 'postpaid', 'dth', 'utility', 'bill', 'tata power', 'adani', 'mahadiscom', 'bsnl', 'tata sky', 'd2h', 'act fibernet', 'fibernet', 'indane', 'lpg', 'insurance', 'lic', 'premium', 'sip', 'mutual fund', 'credit card', 'loan', 'emi'] },
+  { cat: 'investments', words: ['paytm money', 'groww', 'zerodha', 'kuvera', 'indmoney', 'ind money', 'smallcase', 'upstox', 'angel one', 'angelone', 'icici direct', 'icicidirect', 'hdfc securities', 'kotak securities', '5paisa', 'etmoney', 'et money', 'mutual fund', 'mutualfund', ' sip ', 'sip of', 'sip for', 'folio', 'elss', ' nps ', 'nippon india', 'sbi mutual', 'axis mutual', 'mirae', 'demat', 'bse ltd', 'fixed deposit', 'recurring deposit', ' rd ', ' fd '] },
+  { cat: 'insurance', words: ['insurance', 'lic of india', 'lic premium', 'policy premium', 'term plan', 'hdfc life', 'icici pru', 'icici prudential', 'max life', 'sbi life', 'tata aia', 'bajaj allianz', 'star health', 'care health', 'niva bupa', 'acko', 'go digit', 'policybazaar', 'mediclaim', 'health cover', 'premium due'] },
+  { cat: 'domestic', words: ['maid', 'cook ', 'housekeeping', 'domestic help', 'house help', 'society staff', 'security guard', 'nanny', 'babysitter', 'gardener', 'cleaning service', 'vivatti', 'virvati'] },
+  { cat: 'groceries', words: ['instamart', 'dmart', 'bigbasket', 'blinkit', 'zepto', 'grocery', 'supermarket', 'kirana', 'reliance smart', 'jiomart', 'jio mart', 'more retail', 'spencer', 'nature basket', 'licious', 'country delight', 'milkbasket', 'fraazo', 'otipy', 'vegetable', 'fruits', 'supermart'] },
+  { cat: 'dining', words: ['zomato', 'swiggy', 'dominos', "domino's", 'pizza', 'starbucks', 'cafe', 'coffee', 'restaurant', 'mcdonald', 'kfc', 'eatery', 'biryani', 'food', 'eatsure', 'faasos', 'behrouz', 'box8', 'haldiram', 'barbeque', 'chaayos', 'third wave', 'dunkin', 'subway', 'burger', 'wow momo', 'baskin', 'dineout', 'eazydiner'] },
+  { cat: 'transport', words: ['uber', 'ola', 'rapido', 'indian oil', 'iocl', 'bharat petroleum', 'hpcl', 'shell', 'fuel', 'petrol', 'diesel', 'metro', 'irctc', 'redbus', 'fastag', 'blusmart', 'namma yatri', 'railway', 'toll', 'parking', 'bmtc', 'ksrtc', 'car service', 'vehicle service', 'servicing'] },
+  { cat: 'entertainment', words: ['bookmyshow', 'netflix', 'spotify', 'hotstar', 'prime video', 'pvr', 'inox', 'youtube', 'gaming', 'cinema', 'jiocinema', 'sonyliv', 'zee5', 'disney', 'jiosaavn', 'gaana', 'wynk', 'steam', 'playstation', 'xbox', 'dream11', 'makemytrip', 'goibibo', 'cleartrip', 'ixigo', 'vistara', 'indigo', 'air india', 'spicejet', 'oyo', 'airbnb', 'hotel', 'trip', 'travel', 'holiday'] },
+  { cat: 'education', words: ['university', 'college', 'school', 'tuition', 'academy', 'coaching', 'fees', 'institute', 'byju', 'unacademy', 'vedantu', 'whitehat', 'udemy', 'coursera', 'upgrad', 'scaler', 'course', 'books', 'exam fee'] },
+  { cat: 'healthcare', words: ['pharmacy', 'apollo', 'cult.fit', 'cultfit', 'cure.fit', 'hospital', 'clinic', 'medplus', 'diagnostic', 'practo', 'medical', 'health', '1mg', 'tata 1mg', 'pharmeasy', 'netmeds', 'thyrocare', 'gym', 'fitness', 'dental', 'wellness', 'doctor', 'medicine', 'lab test'] },
+  { cat: 'utilities', words: ['electricity', 'bescom', 'water bill', 'gas bill', 'airtel', 'jio', 'vodafone', 'vi postpaid', 'broadband', 'recharge', 'postpaid', 'prepaid', 'dth', 'tata power', 'adani', 'mahadiscom', 'bsnl', 'tata sky', 'd2h', 'act fibernet', 'fibernet', 'indane', 'lpg', 'internet', 'wifi', 'mobile bill', 'electric', 'utility'] },
+  { cat: 'housing', words: ['rent', 'landlord', 'lease', 'maintenance', 'society', 'nobroker', 'housing', 'property tax', 'home loan', 'house emi', 'apartment', 'flat ', 'prime glass', 'glass and aluminium', 'aluminium'] },
+  { cat: 'lifestyle', words: ['myntra', 'amazon', 'flipkart', 'ajio', 'decathlon', 'nykaa', 'meesho', 'lifestyle', 'shoppers stop', 'mall', 'tatacliq', 'tata cliq', 'reliance digital', 'croma', 'snapdeal', 'firstcry', 'ikea', 'h&m', 'zara', 'westside', 'pantaloons', 'max fashion', 'urban company', 'urbanclap', 'uniqlo', 'levis', "levi's", 'us polo', 'allen solly', 'van heusen', 'peter england', 'fabindia', 'biba', 'snitch', 'bewakoof', 'souled store', 'puma', 'nike', 'adidas', 'reliance trends', 'jockey', 'marks & spencer', 'forever 21', 'salon', 'spa', 'grooming', 'barber', 'subscription'] },
 ];
 
 // Words that mean money went OUT of the account.
@@ -53,9 +59,9 @@ export function ruleClassify(merchant: string, body: string): string | null {
   return null;
 }
 
-/** Pull the rupee amount out of a message, e.g. "Rs.1,240.00" → 1240. */
+/** Pull the rupee amount out of a message, e.g. "Rs.1,240.00" / "₹1,240" → 1240. */
 export function extractAmount(body: string): number | null {
-  const m = body.match(/(?:rs|inr)\.?\s*([\d,]+(?:\.\d{1,2})?)/i);
+  const m = body.match(/(?:rs|inr|₹)\.?\s*([\d,]+(?:\.\d{1,2})?)/i);
   if (!m) return null;
   const n = parseFloat(m[1].replace(/,/g, ''));
   return Number.isFinite(n) && n > 0 ? n : null;
@@ -80,9 +86,13 @@ export function extractPaidAmount(
 
   const STRONG = /grand total|order total|amount paid|amount payable|net payable|total paid|bill total|amount debited|invoice value|final amount|amount charged|total charged|to pay\b|total payable|total bill|amount to be paid|amount spent|transaction amount|money transferred|payment of|you paid|amount\s*:/i;
   const WEAK = /\btotal\b|\bpaid\b|\bdebited\b|\bcharged\b/i;
-  const DEMOTE = /\boff\b|discount|you saved|you save|saved|savings|cashback|\bmrp\b|reward|points|coupon|wallet|available|avl|balance|\blimit\b|\bgst\b|\bigst\b|\btax\b|taxes|delivery|shipping|convenience|cancel|minimum|\bdue\b|outstanding|list price|deal price|face value|donation|\btip\b|packaging|handling|small cart|rain fee|platform fee|protect|secured packaging|carry bag|membership|coins|special price|selling price|offer price|flipkart price|gross|sub\s*-?\s*total|subtotal|before tax|premium|item total|items:|item savings|bag total|bag discount|net item|product savings|product discount|member discount/i;
+  // The actual out-of-pocket amount charged to a real payment instrument — this
+  // is what hit the user's account, so it beats the order total when a receipt
+  // splits payment across a voucher/wallet + a real method (e.g. PhonePe).
+  const PAY_METHOD = /phonepe|phone pe|paytm|google ?pay|gpay|\bupi\b|net\s*banking|netbanking|debit card|credit card|\bvisa\b|mastercard|rupay|paid (via|using|through|by)|charged to|debited from|paid by/i;
+  const DEMOTE = /\boff\b|discount|you saved|you save|saved|savings|cashback|\bmrp\b|reward|points|coupon|voucher|gift\s*card|store\s*credit|wallet|available|avl|balance|\blimit\b|\bgst\b|\bigst\b|\btax\b|taxes|delivery|shipping|convenience|cancel|minimum|\bdue\b|outstanding|list price|deal price|face value|donation|\btip\b|packaging|handling|small cart|rain fee|platform fee|protect|secured packaging|carry bag|membership|\bcoins\b|special price|selling price|offer price|flipkart price|gross|sub\s*-?\s*total|subtotal|before tax|premium|item total|items:|item savings|bag total|bag discount|net item|product savings|product discount|member discount|will receive|you will get|earn|offer|investment value|current value|portfolio|total value|holdings?|\bnav\b|\bunits?\b|returns?|market value|invested value|\bfolio\b|gain|profit|p&l|net worth|total investment/i;
 
-  interface Hit { value: number; index: number; strong: boolean; weak: boolean; demoted: boolean }
+  interface Hit { value: number; index: number; pay: boolean; strong: boolean; weak: boolean; demoted: boolean }
   const hits: Hit[] = [];
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
@@ -93,7 +103,14 @@ export function extractPaidAmount(
     if (lineEnd === -1) lineEnd = text.length;
     const line = text.slice(lineStart, lineEnd);
     const demoted = DEMOTE.test(line);
-    hits.push({ value, index: m.index, strong: STRONG.test(line) && !demoted, weak: WEAK.test(line) && !demoted, demoted });
+    hits.push({
+      value,
+      index: m.index,
+      pay: PAY_METHOD.test(line) && !demoted,
+      strong: STRONG.test(line) && !demoted,
+      weak: WEAK.test(line) && !demoted,
+      demoted,
+    });
   }
   if (hits.length === 0) return null;
 
@@ -105,6 +122,10 @@ export function extractPaidAmount(
     return best.value;
   };
 
+  // A real payment-instrument charge (PhonePe/UPI/card) is the out-of-pocket
+  // amount — it wins over the order total when payment is split with a voucher.
+  const pay = hits.filter(h => h.pay);
+  if (pay.length) return pickLargestLatest(pay);
   const strong = hits.filter(h => h.strong);
   if (strong.length) return pickLargestLatest(strong);
   const weak = hits.filter(h => h.weak);
@@ -207,7 +228,7 @@ export function parseSmsMessages(raw: RawSms[]): Transaction[] {
   return extractSpends(raw).map((d, i) => ({
     id: i + 1,
     merchant: d.merchant,
-    cat: ruleClassify(d.merchant, d.body) ?? 'bills',
+    cat: ruleClassify(d.merchant, d.body) ?? 'other',
     amount: d.amount,
     day: d.when.getDate(),
     month: d.when.getMonth(),

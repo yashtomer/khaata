@@ -1,6 +1,7 @@
-import { Tabs } from 'expo-router';
+import { Tabs, Redirect } from 'expo-router';
 import { Icon } from '../../components/Icon';
 import { C, F } from '../../src/theme';
+import { useApp } from '../../src/context';
 
 const HOME_PATHS = ['M3 9.5 12 3l9 6.5', 'M5 9.5V21h14V9.5'];
 const STATS_PATHS = ['M3 21V3', 'M3 21h18', 'M7 16v-4', 'M12 16V8', 'M17 16v-9'];
@@ -8,6 +9,10 @@ const LIST_PATHS = ['M8 6h13', 'M8 12h13', 'M8 18h13', 'M3 6h.01', 'M3 12h.01', 
 const WALLET_PATHS = ['M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z', 'M16 13h.01', 'M3 10h18'];
 
 export default function TabLayout() {
+  const { hydrated, loggedIn } = useApp();
+  // Don't allow the dashboard to be shown to a logged-out user.
+  if (hydrated && !loggedIn) return <Redirect href="/onboarding" />;
+
   return (
     <Tabs
       screenOptions={{

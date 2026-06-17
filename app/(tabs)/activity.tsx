@@ -92,7 +92,7 @@ export default function ActivityScreen() {
               <Text style={styles.groupLabel}>{g.label}</Text>
               <View style={styles.groupItems}>
                 {g.items.map(t => {
-                  const cat = catMap[t.cat];
+                  const cat = catMap[t.cat] || catMap.other;
                   return (
                     <TouchableOpacity
                       key={t.id}

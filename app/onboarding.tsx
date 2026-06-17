@@ -4,20 +4,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import Svg, { Path, Rect, Circle } from 'react-native-svg';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { router, Redirect } from 'expo-router';
+import Svg, { Path } from 'react-native-svg';
 import { useApp } from '../src/context';
 import { C, F } from '../src/theme';
-import { GOOGLE_WEB_CLIENT_ID, GMAIL_SCOPES } from '../src/gmail';
-
-// Native Google Sign-In: authenticates via Play Services (package + SHA-1),
-// no browser redirect URIs — avoids the OAuth "invalid_request" error.
-GoogleSignin.configure({
-  webClientId: GOOGLE_WEB_CLIENT_ID,
-  scopes: GMAIL_SCOPES,
-  offlineAccess: false,
-});
 
 function WalletIcon() {
   return (
@@ -29,66 +19,49 @@ function WalletIcon() {
   );
 }
 
-function MailIcon({ color = '#EA4335' }: { color?: string }) {
+/** The multi-colour Google "G" mark. */
+function GoogleG() {
   return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
-      <Path d="m22 7-10 6L2 7" />
+    <Svg width={20} height={20} viewBox="0 0 48 48">
+      <Path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+      <Path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+      <Path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+      <Path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
     </Svg>
   );
 }
 
-function SmsIcon({ color = '#3B82F6' }: { color?: string }) {
+function CheckDot() {
   return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </Svg>
+    <View style={styles.checkDot}>
+      <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round">
+        <Path d="M20 6 9 17l-5-5" />
+      </Svg>
+    </View>
   );
 }
 
-function ShieldIcon() {
-  return (
-    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#A7A7BC" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-    </Svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <Svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#12A45A" strokeWidth={3.2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M20 6 9 17l-5-5" />
-    </Svg>
-  );
-}
+const FEATURES = [
+  'Reads your bank SMS & Gmail receipts automatically',
+  'Sorts every spend into the right category',
+  'Private — your data stays on your device',
+];
 
 export default function Onboarding() {
-  const { emailConnected, smsConnected, smsStatus, connectSms, disconnectSms, linkEmail, disconnectEmail } = useApp();
-  const [smsLoading, setSmsLoading] = useState(false);
-  const [emailLoading, setEmailLoading] = useState(false);
-  const canContinue = emailConnected || smsConnected;
+  const { loggedIn, login } = useApp();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
 
-  const onPressSms = async () => {
-    if (smsConnected) {
-      disconnectSms();
-      return;
-    }
-    setSmsLoading(true);
-    await connectSms();
-    setSmsLoading(false);
-  };
+  // Already signed in (e.g. navigated back here) → straight to the dashboard.
+  if (loggedIn) return <Redirect href="/(tabs)" />;
 
-  const onPressEmail = async () => {
-    if (emailConnected) {
-      // Tapping a linked account signs out of Gmail.
-      await disconnectEmail();
-      return;
-    }
-    setEmailLoading(true);
-    // Try a silent restore first (no picker); fall back to the account picker.
-    let r = await linkEmail(false);
-    if (r !== 'ok') r = await linkEmail(true);
-    setEmailLoading(false);
+  const onContinue = async () => {
+    setError(false);
+    setLoading(true);
+    const r = await login();
+    setLoading(false);
+    if (r === 'ok') router.replace('/(tabs)');
+    else setError(true);
   };
 
   return (
@@ -117,85 +90,38 @@ export default function Onboarding() {
         {/* Headline */}
         <Text style={styles.headline}>Track every rupee,{'\n'}automatically.</Text>
         <Text style={styles.desc}>
-          Khaata reads your bank SMS and payment emails, then sorts every spend into the right
-          category — no manual entry.
+          Khaata turns your bank SMS and payment emails into a clear, categorised view of where
+          your money goes — no manual entry.
         </Text>
 
-        {/* Connect buttons */}
-        <View style={styles.connectList}>
-          <TouchableOpacity style={styles.connectBtn} onPress={onPressEmail} activeOpacity={0.8} disabled={emailLoading}>
-            <View style={[styles.connectIcon, { backgroundColor: '#FFE8E6' }]}>
-              <MailIcon />
+        {/* Feature bullets */}
+        <View style={styles.features}>
+          {FEATURES.map(f => (
+            <View key={f} style={styles.featureRow}>
+              <CheckDot />
+              <Text style={styles.featureText}>{f}</Text>
             </View>
-            <View style={styles.connectInfo}>
-              <Text style={styles.connectTitle}>Connect Email</Text>
-              <Text style={styles.connectSub}>
-                {emailConnected ? 'Reading Gmail payment receipts' : 'Gmail · payment receipts'}
-              </Text>
-            </View>
-            {emailLoading ? (
-              <ActivityIndicator color={C.primary} style={{ marginRight: 8 }} />
-            ) : emailConnected ? (
-              <View style={styles.linkedBadge}>
-                <CheckIcon />
-                <Text style={styles.linkedText}>Linked</Text>
-              </View>
-            ) : (
-              <View style={styles.connectTag}>
-                <Text style={styles.connectTagText}>Connect</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.connectBtn} onPress={onPressSms} activeOpacity={0.8} disabled={smsLoading}>
-            <View style={[styles.connectIcon, { backgroundColor: '#E5EEFF' }]}>
-              <SmsIcon />
-            </View>
-            <View style={styles.connectInfo}>
-              <Text style={styles.connectTitle}>Connect SMS</Text>
-              <Text style={styles.connectSub}>
-                {smsConnected && smsStatus === 'ok'
-                  ? 'Reading bank & UPI alerts'
-                  : smsConnected && smsStatus === 'unsupported'
-                  ? 'Demo data (not on device)'
-                  : 'Bank & UPI alerts'}
-              </Text>
-            </View>
-            {smsLoading ? (
-              <ActivityIndicator color={C.primary} style={{ marginRight: 8 }} />
-            ) : smsConnected ? (
-              <View style={styles.linkedBadge}>
-                <CheckIcon />
-                <Text style={styles.linkedText}>Linked</Text>
-              </View>
-            ) : (
-              <View style={styles.connectTag}>
-                <Text style={styles.connectTagText}>Connect</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          ))}
         </View>
 
-        {/* Privacy note */}
-        <View style={styles.privacy}>
-          <ShieldIcon />
-          <Text style={styles.privacyText}>
-            We only scan transaction messages. Nothing is shared and you can disconnect anytime.
-          </Text>
-        </View>
+        <View style={{ flex: 1, minHeight: 24 }} />
 
-        <View style={{ flex: 1, minHeight: 18 }} />
+        {/* Continue with Google */}
+        <TouchableOpacity style={styles.googleBtn} onPress={onContinue} activeOpacity={0.85} disabled={loading}>
+          {loading ? (
+            <ActivityIndicator color={C.primary} />
+          ) : (
+            <>
+              <GoogleG />
+              <Text style={styles.googleBtnText}>Continue with Google</Text>
+            </>
+          )}
+        </TouchableOpacity>
+        {error && <Text style={styles.errorText}>Sign-in didn't complete. Please try again.</Text>}
 
-        {/* Continue button */}
-        {canContinue ? (
-          <TouchableOpacity style={styles.continueBtn} onPress={() => router.replace('/(tabs)/')} activeOpacity={0.9}>
-            <Text style={styles.continueBtnText}>Continue</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.continueBtnDisabled}>
-            <Text style={styles.continueBtnDisabledText}>Connect a source to begin</Text>
-          </View>
-        )}
+        <Text style={styles.legal}>
+          By continuing you agree to let Khaata read your transaction messages on this device.
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -203,7 +129,7 @@ export default function Onboarding() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
-  scroll: { flexGrow: 1, paddingHorizontal: 26, paddingBottom: 30, paddingTop: 8 },
+  scroll: { flexGrow: 1, paddingHorizontal: 26, paddingBottom: 28, paddingTop: 8 },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
   logoIcon: {
     width: 38, height: 38, borderRadius: 12, backgroundColor: C.primary,
@@ -228,27 +154,17 @@ const styles = StyleSheet.create({
   previewBadgeText: { fontSize: 12, fontFamily: F.semiBold, color: '#fff' },
   headline: { fontSize: 25, fontFamily: F.extraBold, color: C.dark, letterSpacing: -0.6, lineHeight: 30, marginTop: 26 },
   desc: { fontSize: 14, fontFamily: F.medium, color: C.muted, lineHeight: 22, marginTop: 10 },
-  connectList: { flexDirection: 'column', gap: 12, marginTop: 24 },
-  connectBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16,
-    borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: '#fff',
+  features: { gap: 14, marginTop: 24 },
+  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  checkDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#16A34A', alignItems: 'center', justifyContent: 'center' },
+  featureText: { flex: 1, fontSize: 14, fontFamily: F.semiBold, color: C.text, lineHeight: 19 },
+  googleBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 11,
+    width: '100%', paddingVertical: 16, borderRadius: 18, backgroundColor: '#fff',
+    borderWidth: 1.5, borderColor: '#E4E2EE',
+    shadowColor: '#1A1730', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.08, shadowRadius: 20, elevation: 4,
   },
-  connectIcon: { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  connectInfo: { flex: 1 },
-  connectTitle: { fontSize: 15, fontFamily: F.bold, color: C.dark },
-  connectSub: { fontSize: 12.5, fontFamily: F.medium, color: '#9595AB', marginTop: 2 },
-  linkedBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#E4F8EE', paddingVertical: 7, paddingHorizontal: 12, borderRadius: 14 },
-  linkedText: { fontSize: 12, fontFamily: F.bold, color: '#12A45A' },
-  connectTag: { backgroundColor: C.primarySoft, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 14 },
-  connectTagText: { fontSize: 13, fontFamily: F.bold, color: C.primary },
-  privacy: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, marginTop: 18, paddingHorizontal: 2 },
-  privacyText: { flex: 1, fontSize: 11.5, fontFamily: F.medium, color: '#A7A7BC', lineHeight: 17 },
-  continueBtn: {
-    width: '100%', paddingVertical: 17, borderRadius: 20, backgroundColor: C.primary,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#6358E8', shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.38, shadowRadius: 28, elevation: 10,
-  },
-  continueBtnText: { fontSize: 16, fontFamily: F.bold, color: '#fff' },
-  continueBtnDisabled: { width: '100%', paddingVertical: 17, borderRadius: 20, backgroundColor: '#E6E6EE', alignItems: 'center' },
-  continueBtnDisabledText: { fontSize: 16, fontFamily: F.bold, color: '#A9A9BC' },
+  googleBtnText: { fontSize: 15.5, fontFamily: F.bold, color: '#3C4043' },
+  errorText: { fontSize: 12.5, fontFamily: F.semiBold, color: '#EF4444', textAlign: 'center', marginTop: 12 },
+  legal: { fontSize: 11.5, fontFamily: F.medium, color: '#A7A7BC', lineHeight: 17, textAlign: 'center', marginTop: 16, paddingHorizontal: 8 },
 });

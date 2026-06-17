@@ -129,33 +129,36 @@ export default function HomeScreen() {
     // paginates it via recentLimit as you scroll).
     const recent = [...monthTxns].sort((a, b) => b.day - a.day || b.id - a.id);
 
-    // Trend window is always the last 6 months ending at the real current month
-    // (it doesn't shift when you select a past month); the selected month is
-    // highlighted. Falls back to the demo TREND when data spans a single month.
-    // Trend is spending only (exclude investments, so a big SIP doesn't dwarf it).
-    const byMonth: Record<string, number> = {};
-    txns.forEach(t => { if (t.cat === 'investments') return; const k = `${t.year}-${t.month}`; byMonth[k] = (byMonth[k] || 0) + t.amount; });
-    const months: Array<{ m: string; total: number; year?: number; month?: number }> = [];
+    // Trend window: last 6 months ending at the real current month. Each month
+    // gets TWO bars — spend (excl investments) and investments — shown side by
+    // side. Bars are scaled per-series so both patterns stay readable even when a
+    // big SIP dwarfs monthly spend.
+    const byMonth: Record<string, number> = {};       // spend (excl investments)
+    const byMonthInv: Record<string, number> = {};    // investments
+    txns.forEach(t => {
+      const k = `${t.year}-${t.month}`;
+      if (t.cat === 'investments') byMonthInv[k] = (byMonthInv[k] || 0) + t.amount;
+      else byMonth[k] = (byMonth[k] || 0) + t.amount;
+    });
+    const months = [] as Array<{ m: string; spend: number; invest: number; total: number; year?: number; month?: number }>;
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push({
-        m: MONTHS[d.getMonth()],
-        total: byMonth[`${d.getFullYear()}-${d.getMonth()}`] || 0,
-        year: d.getFullYear(),
-        month: d.getMonth(),
-      });
+      const k = `${d.getFullYear()}-${d.getMonth()}`;
+      months.push({ m: MONTHS[d.getMonth()], spend: byMonth[k] || 0, invest: byMonthInv[k] || 0, total: byMonth[k] || 0, year: d.getFullYear(), month: d.getMonth() });
     }
-    const distinctMonths = Object.keys(byMonth).length;
-    const trendData = distinctMonths >= 2 ? months : TREND;
-    const maxTrend = Math.max(1, ...trendData.map(t => t.total));
+    const distinctMonths = new Set([...Object.keys(byMonth), ...Object.keys(byMonthInv)]).size;
+    const trendData = distinctMonths >= 2 ? months : TREND.map(t => ({ m: t.m, spend: t.total, invest: 0, total: t.total } as typeof months[0]));
+    const maxSpend = Math.max(1, ...trendData.map(t => t.spend));
+    const maxInvest = Math.max(1, ...trendData.map(t => t.invest));
     const trend = trendData.map(t => ({
       ...t,
-      hRatio: t.total / maxTrend,
+      spendRatio: t.spend / maxSpend,
+      investRatio: t.invest / maxInvest,
       isSelected: (t as any).year === curYear && (t as any).month === curMonth,
     }));
 
-    const nonZero = trendData.filter(t => t.total > 0);
-    const avg = nonZero.length ? Math.round(nonZero.reduce((a, t) => a + t.total, 0) / nonZero.length) : 0;
+    const nonZero = trendData.filter(t => t.spend > 0);
+    const avg = nonZero.length ? Math.round(nonZero.reduce((a, t) => a + t.spend, 0) / nonZero.length) : 0;
     const avgLabel = `avg ${inrCompact(avg)}`;
 
     // Delta vs the month before the selected one.
@@ -267,13 +270,17 @@ export default function HomeScreen() {
           </View>
         </LinearGradient>
 
-        {/* Trend */}
+        {/* Trend — two bars per month: spend + investments */}
         <View style={[styles.card, styles.trendCard]}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>6-month trend</Text>
             <Text style={styles.cardMeta} numberOfLines={1}>
-              {activeBar ? `${activeBar.m} · ${inrCompact(activeBar.total)}` : avgLabel}
+              {activeBar ? `${activeBar.m} · ${inrCompact(activeBar.spend)} spent${activeBar.invest > 0 ? ` · ${inrCompact(activeBar.invest)} invested` : ''}` : avgLabel}
             </Text>
+          </View>
+          <View style={styles.trendLegend}>
+            <View style={styles.legendItem}><View style={[styles.legendDotSm, { backgroundColor: '#C3BCEA' }]} /><Text style={styles.legendLabel}>Spend</Text></View>
+            <View style={styles.legendItem}><View style={[styles.legendDotSm, { backgroundColor: '#0891B2' }]} /><Text style={styles.legendLabel}>Investments</Text></View>
           </View>
           <View
             style={styles.trendBars}
@@ -282,25 +289,18 @@ export default function HomeScreen() {
           >
             {trend.map((t, i) => {
               const isActive = activeTrend === i;
+              const hot = isActive || t.isSelected;
               return (
                 <View key={t.m} style={styles.trendCol}>
-                  <Text style={[styles.trendAmt, (isActive || t.isSelected) && { color: C.primary, fontFamily: F.extraBold }]} numberOfLines={1}>
-                    {t.total > 0 ? inrCompact(t.total) : ''}
-                  </Text>
-                  <View style={{ height: BAR_H, width: '100%', justifyContent: 'flex-end', alignItems: 'center' }}>
-                    <View
-                      style={[
-                        styles.trendBar,
-                        {
-                          // Give any month with spend a visible minimum height so a
-                          // single large month doesn't flatten the rest to nothing.
-                          height: t.total > 0 ? Math.max(6, t.hRatio * BAR_H) : 2,
-                          backgroundColor: isActive || t.isSelected ? C.primary : t.total > 0 ? '#C3BCEA' : '#ECEAF6',
-                        },
-                      ]}
-                    />
+                  <View style={styles.trendAmtWrap}>
+                    {t.spend > 0 && <Text style={[styles.trendAmt, { color: hot ? C.primary : '#8B83C9' }]} numberOfLines={1}>{inrCompact(t.spend)}</Text>}
+                    {t.invest > 0 && <Text style={[styles.trendAmt, { color: '#0891B2' }]} numberOfLines={1}>{inrCompact(t.invest)}</Text>}
                   </View>
-                  <Text style={[styles.trendLabel, (isActive || t.isSelected) && { color: C.primary, fontFamily: F.extraBold }]}>{t.m}</Text>
+                  <View style={styles.trendBarPair}>
+                    <View style={[styles.trendBar2, { height: t.spend > 0 ? Math.max(5, t.spendRatio * BAR_H) : 2, backgroundColor: hot ? C.primary : '#C3BCEA' }]} />
+                    <View style={[styles.trendBar2, { height: t.invest > 0 ? Math.max(5, t.investRatio * BAR_H) : 2, backgroundColor: '#0891B2', opacity: t.invest > 0 ? 1 : 0.22 }]} />
+                  </View>
+                  <Text style={[styles.trendLabel, hot && { color: C.primary, fontFamily: F.extraBold }]}>{t.m}</Text>
                 </View>
               );
             })}
@@ -585,8 +585,15 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 15, fontFamily: F.extraBold, color: C.dark },
   cardMeta: { fontSize: 12, fontFamily: F.semiBold, color: C.muted },
   trendBars: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  trendCol: { flex: 1, alignItems: 'center', gap: 7 },
-  trendAmt: { fontSize: 9.5, fontFamily: F.bold, color: '#9A9AAE' },
+  trendCol: { flex: 1, alignItems: 'center', gap: 6 },
+  trendAmt: { fontSize: 9, fontFamily: F.bold, color: '#9A9AAE', lineHeight: 11 },
+  trendAmtWrap: { height: 24, justifyContent: 'flex-end', alignItems: 'center' },
+  trendBarPair: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 3, height: 78 },
+  trendBar2: { width: 13, borderTopLeftRadius: 5, borderTopRightRadius: 5, borderBottomLeftRadius: 2, borderBottomRightRadius: 2 },
+  trendLegend: { flexDirection: 'row', gap: 16, marginTop: -6, marginBottom: 14, paddingLeft: 2 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  legendDotSm: { width: 9, height: 9, borderRadius: 3 },
+  legendLabel: { fontSize: 11, fontFamily: F.semiBold, color: C.muted },
   trendBar: { width: '60%', borderTopLeftRadius: 7, borderTopRightRadius: 7, borderBottomLeftRadius: 3, borderBottomRightRadius: 3 },
   trendLabel: { fontSize: 11, fontFamily: F.bold, color: '#A0A0B5' },
   trendTip: {
